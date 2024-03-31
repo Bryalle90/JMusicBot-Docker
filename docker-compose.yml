@@ -1,0 +1,16 @@
+version: '3'
+services:
+  jbot2:
+    build:
+      context: ./build
+      dockerfile: Dockerfile
+    image: jmbot
+    container_name: jmbot
+    environment:
+      BOT_TOKEN: ""
+      BOT_OWNER: ""
+    volumes:
+      - ./conf:/conf
+      - ./jars:/jars
+      - ./playlists:/playlists
+    restart: unless-stopped

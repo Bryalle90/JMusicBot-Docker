@@ -1,0 +1,139 @@
+#!/bin/bash
+SOURCE=${BASH_SOURCE[0]}
+while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
+  DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
+  SOURCE=$(readlink "$SOURCE")
+  [[ $SOURCE != /* ]] && SOURCE=$DIR/$SOURCE # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+SOURCE_DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
+
+# Source Repo: https://github.com/jagrosh/MusicBot
+
+# This will have this script check for a version of JMusicBot every
+# startup (and download it if the version isn't currently downloaded)
+DOWNLOAD="${AUTO_DOWNLOAD:-true}"
+
+# Use a specific version
+VERSION="${USE_VERSION:-latest}"
+
+RELEASE_URL="https://api.github.com/repos/jagrosh/MusicBot/releases/latest"
+DOWNLOAD_URL="https://github.com/jagrosh/MusicBot/releases/download"
+PL_DIR="/playlists"
+JAR_DIR="/jars"
+CONF_DIR="/conf"
+
+function mod_conf() {
+    # Link config.txt
+    if [ ! -w "$SOURCE_DIR/config.txt" ]; then
+        if [ ! -w "$CONF_DIR/config.txt" ]; then    # no confs exist
+            if [ ! -d "$CONF_DIR" ]; then mkdir -p "$CONF_DIR" && chmod 0666 "$CONF_DIR"; fi
+            curl https://jmusicbot.com/config/ | awk '/<code>/,/<\/code>/' | sed '1d;$d' > "$CONF_DIR/config.txt"
+            chmod 0666 "$CONF_DIR/config.txt"
+        fi
+    else
+        if [ ! -w "$CONF_DIR/config.txt" ]; then    # only source conf exists
+            mv "$SOURCE_DIR/config.txt" "$CONF_DIR/config.txt"
+            chmod 0666 "$CONF_DIR/config.txt"
+        else    # both confs exist
+            rm "$SOURCE_DIR/config.txt"
+        fi
+    fi
+    ln -s "$CONF_DIR/config.txt" "$SOURCE_DIR/config.txt"
+
+    # Link settings.json
+    if [ ! -w "$SOURCE_DIR/serversettings.json" ]; then
+        if [ ! -w "$CONF_DIR/serversettings.json" ]; then    # no confs exist
+            if [ ! -d "$CONF_DIR" ]; then mkdir -p "$CONF_DIR" && chmod 0666 "$CONF_DIR"; fi
+            touch "$CONF_DIR/serversettings.json" && echo "{}" >> "$CONF_DIR/serversettings.json"
+            chmod 0666 "$CONF_DIR/serversettings.json"
+        fi
+    else
+        if [ ! -w "$CONF_DIR/serversettings.json" ]; then    # only source conf exists
+            mv "$SOURCE_DIR/serversettings.json" "$CONF_DIR/serversettings.json"
+            chmod 0666 "$CONF_DIR/serversettings.json"
+        else    # both confs exist
+            rm "$SOURCE_DIR/serversettings.json"
+        fi
+    fi
+    ln -s "$CONF_DIR/serversettings.json" "$SOURCE_DIR/serversettings.json"
+
+    # Set token and owner
+    sed -i "s/\(token =\).*/\1 ${BOT_TOKEN}/" "$CONF_DIR/config.txt"
+    sed -i "s/\(owner =\).*/\1 ${BOT_OWNER}/" "$CONF_DIR/config.txt"
+
+    # Set playlist folder
+    if [ ! -d "$PL_DIR" ]; then mkdir -p "$PL_DIR" && chmod 0666 "$PL_DIR"; fi
+    sed -i "s|\(playlistsfolder =\).*|\1 \"${PL_DIR}\"|" "$CONF_DIR/config.txt"
+}
+
+function get_latest() {
+    local latest_url=""
+    latest_url=$(curl -s "$RELEASE_URL" \
+       | grep -s -i "browser_download_url.*\.jar" \
+       | sed 's/.*\(http.*\)"/\1/')
+    echo "$latest_url"
+}
+
+function get_url() {
+    local url=""
+    url="$( if [[ "$VERSION" == "latest" ]]; then get_latest; else echo "${DOWNLOAD_URL}/${VERSION}/JMusicBot-${VERSION}.jar"; fi )"
+    echo "$url"
+}
+
+function get_filename() {
+    echo "$1" | sed 's/.*\/\([^\/]*\)/\1/'
+}
+
+function download() {
+    local url=""
+    local file=""
+
+    url="$(get_url)"
+    file="$(get_filename "$url")"
+
+    if [ ! -d "$JAR_DIR" ]; then mkdir -p "$JAR_DIR" && chmod 0666 "$JAR_DIR"; fi
+    curl -L "$url" -o "$JAR_DIR/$file" && chmod 0777 "$JAR_DIR/$file" && return 0
+    return 1
+}
+
+function file_exists() {
+    local file=""
+    file="$1"
+    [[ -f "$file" ]] && return 0 || return 1
+}
+
+function get_file() {
+    [[ "$DOWNLOAD" == "true" ]] && { file_exists "$JAR_DIR/$( get_filename "$(get_url)" )" || { download || return 1; }; }
+    return 0
+}
+
+function run() {
+    local file=""
+    local jar_name=""
+    jar_name="$( if [[ "$VERSION" == "latest" ]]; then echo "JMusicBot*.jar"; else get_filename "$(get_url)"; fi )"
+    file="$( find "$JAR_DIR" -maxdepth 1 -name "$jar_name" | head -1 )"
+    java -Dnogui=true -jar "$file" || return 1
+    return 0
+}
+
+printf '%s\n' "AUTO_DOWNLOAD: $DOWNLOAD"
+printf '%s\n' "VERSION: $VERSION"
+
+if [ ! "${BOT_TOKEN}" == "" ] && [ ! "${BOT_OWNER}" == "" ]; then
+    mod_conf || { printf '%s\n' "Error setting conf" && exit 1; }
+else
+    printf '%s\n' "Set the environment variables for BOT_TOKEN and BOT_OWNER"
+    printf '%s\n' "See https://jmusicbot.com/getting-a-bot-token/"
+    exit 1
+fi
+
+# Set perms
+if [ -d "./supervise" ]; then chmod 0777 supervise; fi
+
+# Get jar
+get_file || { printf '%s\n' "Error downloading ..." && exit 1; }
+
+# Run bot
+run || { printf '%s\n' "Bot error ..." && exit 1; }
+
+exit 0
