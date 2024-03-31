@@ -24,36 +24,37 @@ CONF_DIR="/conf"
 
 function mod_conf() {
     # Link config.txt
-    if [ ! -w "$SOURCE_DIR/config.txt" ]; then
-        if [ ! -w "$CONF_DIR/config.txt" ]; then    # no confs exist
-            if [ ! -d "$CONF_DIR" ]; then mkdir -p "$CONF_DIR" && chmod 0666 "$CONF_DIR"; fi
-            curl https://jmusicbot.com/config/ | awk '/<code>/,/<\/code>/' | sed '1d;$d' > "$CONF_DIR/config.txt"
-            chmod 0666 "$CONF_DIR/config.txt"
+    if [ -w "$CONF_DIR/config.txt" ]; then
+        if [ -w "$SOURCE_DIR/config.txt" ]; then    # both confs exist
+            rm -f "$SOURCE_DIR/config.txt"
         fi
     else
-        if [ ! -w "$CONF_DIR/config.txt" ]; then    # only source conf exists
+        if [ ! -d "$CONF_DIR" ]; then mkdir -p "$CONF_DIR" && chmod 0666 "$CONF_DIR"; fi
+        if [ -w "$SOURCE_DIR/config.txt" ]; then    # only source conf exists
             mv "$SOURCE_DIR/config.txt" "$CONF_DIR/config.txt"
-            chmod 0666 "$CONF_DIR/config.txt"
-        else    # both confs exist
-            rm "$SOURCE_DIR/config.txt"
+        else
+            echo """$( curl "https://jmusicbot.com/config/" )""" |\
+                sed 's|&quot;|"|g' | sed 's|&#39;|'\''|g' |\
+                awk '/<code>/,/<\/code>/' |\
+                sed '1d;$d' > "$CONF_DIR/config.txt"
         fi
+        chmod 0666 "$CONF_DIR/config.txt"
     fi
     ln -s "$CONF_DIR/config.txt" "$SOURCE_DIR/config.txt"
 
-    # Link settings.json
-    if [ ! -w "$SOURCE_DIR/serversettings.json" ]; then
-        if [ ! -w "$CONF_DIR/serversettings.json" ]; then    # no confs exist
-            if [ ! -d "$CONF_DIR" ]; then mkdir -p "$CONF_DIR" && chmod 0666 "$CONF_DIR"; fi
-            touch "$CONF_DIR/serversettings.json" && echo "{}" >> "$CONF_DIR/serversettings.json"
-            chmod 0666 "$CONF_DIR/serversettings.json"
+    # Link settings .json
+    if [ -w "$CONF_DIR/serversettings.json" ]; then
+        if [ -w "$SOURCE_DIR/serversettings.json" ]; then    # both confs exist
+            rm -f "$SOURCE_DIR/serversettings.json"
         fi
     else
-        if [ ! -w "$CONF_DIR/serversettings.json" ]; then    # only source conf exists
+        if [ ! -d "$CONF_DIR" ]; then mkdir -p "$CONF_DIR" && chmod 0666 "$CONF_DIR"; fi
+        if [ -w "$SOURCE_DIR/serversettings.json" ]; then    # only source conf exists
             mv "$SOURCE_DIR/serversettings.json" "$CONF_DIR/serversettings.json"
-            chmod 0666 "$CONF_DIR/serversettings.json"
-        else    # both confs exist
-            rm "$SOURCE_DIR/serversettings.json"
+        else                                                 # no confs exist
+            touch "$CONF_DIR/serversettings.json" && echo "{}" >> "$CONF_DIR/serversettings.json"
         fi
+        chmod 0666 "$CONF_DIR/serversettings.json"
     fi
     ln -s "$CONF_DIR/serversettings.json" "$SOURCE_DIR/serversettings.json"
 

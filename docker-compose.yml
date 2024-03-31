@@ -1,6 +1,6 @@
 version: '3'
 services:
-  jbot2:
+  jmbot:
     build:
       context: ./build
       dockerfile: Dockerfile
@@ -13,4 +13,3 @@ services:
       - ./conf:/conf
       - ./jars:/jars
       - ./playlists:/playlists
-    restart: unless-stopped

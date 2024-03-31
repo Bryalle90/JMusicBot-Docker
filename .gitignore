@@ -1,3 +1,4 @@
 jars/*.jar
 conf/*
 playlists/*
+docker-compose-*.yml
