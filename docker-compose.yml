@@ -13,3 +13,4 @@ services:
       - ./conf:/conf
       - ./jars:/jars
       - ./playlists:/playlists
+    restart: "unless-stopped"
