@@ -7,6 +7,9 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 done
 SOURCE_DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
 
+# Set perms
+if [ -d "./supervise" ]; then chmod 0777 supervise; fi
+
 # Source Repo: https://github.com/jagrosh/MusicBot
 
 # This will have this script check for a version of JMusicBot every
@@ -26,54 +29,63 @@ SAMPLE_CONF_URL="https://jmusicbot.com/config/"
 PL_DIR="/playlists"
 JAR_DIR="/jars"
 CONF_DIR="/conf"
+CONF_FILE="config.txt"
+SETTINGS_FILE="serversettings.json"
 
 function mod_conf() {
     # Link config.txt
-    if [ -w "$CONF_DIR/config.txt" ]; then
-        if [ -w "$SOURCE_DIR/config.txt" ]; then    # both confs exist
-            rm -f "$SOURCE_DIR/config.txt"
+    if [ -w "$CONF_DIR/$CONF_FILE" ]; then
+        if [ -w "$SOURCE_DIR/$CONF_FILE" ]; then    # both confs exist
+            rm -f "$SOURCE_DIR/$CONF_FILE"
         fi
     else
         if [ ! -d "$CONF_DIR" ]; then mkdir -p "$CONF_DIR" && chmod 0666 "$CONF_DIR"; fi
-        if [ -w "$SOURCE_DIR/config.txt" ]; then    # only source conf exists
-            mv "$SOURCE_DIR/config.txt" "$CONF_DIR/config.txt"
+        if [ -w "$SOURCE_DIR/$CONF_FILE" ]; then    # only source conf exists
+            mv "$SOURCE_DIR/$CONF_FILE" "$CONF_DIR/$CONF_FILE"
         else
             echo """$( curl "$SAMPLE_CONF_URL" )""" |\
                 sed 's|&quot;|"|g' | sed 's|&#39;|'\''|g' |\
                 awk '/<code>/,/<\/code>/' |\
-                sed '1d;$d' > "$CONF_DIR/config.txt"
+                sed '1d;$d' > "$CONF_DIR/$CONF_FILE"
         fi
-        chmod 0666 "$CONF_DIR/config.txt"
+        chmod 0666 "$CONF_DIR/$CONF_FILE"
     fi
-    ln -s "$CONF_DIR/config.txt" "$SOURCE_DIR/config.txt"
+    printf '%s\n' "Linking: $CONF_FILE" >&2
+    ln -s "$CONF_DIR/$CONF_FILE" "$SOURCE_DIR/$CONF_FILE"
 
     # Link settings .json
-    if [ -w "$CONF_DIR/serversettings.json" ]; then
-        if [ -w "$SOURCE_DIR/serversettings.json" ]; then    # both confs exist
-            rm -f "$SOURCE_DIR/serversettings.json"
+    if [ -w "$CONF_DIR/$SETTINGS_FILE" ]; then
+        if [ -w "$SOURCE_DIR/$SETTINGS_FILE" ]; then    # both confs exist
+            rm -f "$SOURCE_DIR/$SETTINGS_FILE"
         fi
     else
         if [ ! -d "$CONF_DIR" ]; then mkdir -p "$CONF_DIR" && chmod 0666 "$CONF_DIR"; fi
-        if [ -w "$SOURCE_DIR/serversettings.json" ]; then    # only source conf exists
-            mv "$SOURCE_DIR/serversettings.json" "$CONF_DIR/serversettings.json"
+        if [ -w "$SOURCE_DIR/$SETTINGS_FILE" ]; then    # only source conf exists
+            mv "$SOURCE_DIR/$SETTINGS_FILE" "$CONF_DIR/$SETTINGS_FILE"
         else                                                 # no confs exist
-            touch "$CONF_DIR/serversettings.json" && echo "{}" >> "$CONF_DIR/serversettings.json"
+            touch "$CONF_DIR/$SETTINGS_FILE" && echo "{}" >> "$CONF_DIR/$SETTINGS_FILE"
         fi
-        chmod 0666 "$CONF_DIR/serversettings.json"
+        chmod 0666 "$CONF_DIR/$SETTINGS_FILE"
     fi
-    ln -s "$CONF_DIR/serversettings.json" "$SOURCE_DIR/serversettings.json"
+    printf '%s\n' "Linking: $SETTINGS_FILE" >&2
+    ln -s "$CONF_DIR/$SETTINGS_FILE" "$SOURCE_DIR/$SETTINGS_FILE"
 
     # Set token and owner
-    sed -i "s/\(token =\).*/\1 ${BOT_TOKEN}/" "$CONF_DIR/config.txt"
-    sed -i "s/\(owner =\).*/\1 ${BOT_OWNER}/" "$CONF_DIR/config.txt"
+    printf '%s\n' "" >&2
+    printf '%s\n' "Setting: BOT_TOKEN and BOT_OWNER" >&2
+    sed -i "s/\(token =\).*/\1 ${BOT_TOKEN}/" "$CONF_DIR/$CONF_FILE"
+    sed -i "s/\(owner =\).*/\1 ${BOT_OWNER}/" "$CONF_DIR/$CONF_FILE"
 
     # Set playlist folder
+    printf '%s\n' "Setting: playlistsfolder to $PL_DIR" >&2
     if [ ! -d "$PL_DIR" ]; then mkdir -p "$PL_DIR" && chmod 0666 "$PL_DIR"; fi
-    sed -i "s|\(playlistsfolder =\).*|\1 \"${PL_DIR}\"|" "$CONF_DIR/config.txt"
+    sed -i "s|\(playlistsfolder =\).*|\1 \"${PL_DIR}\"|" "$CONF_DIR/$CONF_FILE"
 
     # Set update notification
-    sed -i "s|\(updatealerts=\).*|\1${NOTIFY}|" "$CONF_DIR/config.txt"
+    printf '%s\n' "Setting: updatealerts to $NOTIFY" >&2
+    sed -i "s|\(updatealerts=\).*|\1${NOTIFY}|" "$CONF_DIR/$CONF_FILE"
 
+    printf '%s\n' ""
     return 0
 }
 
@@ -130,15 +142,19 @@ function get_url() {
     echo "$url"
 }
 
-function get_filename() {
-    echo "$1" | sed 's/.*\/\([^\/]*\)/\1/'
+function get_file_name() {
+    local release="$1"
+
+    if ! [ "$RELEASE_API_CONTENT" ]; then fetch_release_info; fi
+    [[ "$release" == "latest" ]] && release=$( get_latest )
+    echo "$RELEASE_API_CONTENT" | jq -c ".[] | select(.tag_name == \"$release\") | .assets[].name" | sed -e 's/^"//' -e 's/"$//'
 }
 
 function download() {
     local url="$1"
     local file=""
 
-    file="$(get_filename "$url")"
+    file="$(get_file_name "$VERSION")"
 
     if [ ! -d "$JAR_DIR" ]; then mkdir -p "$JAR_DIR" && chmod 0666 "$JAR_DIR"; fi
     curl -L "$url" -o "$JAR_DIR/$file" && chmod 0777 "$JAR_DIR/$file" && return 0
@@ -152,20 +168,21 @@ function file_exists() {
 }
 
 function get_file() {
-    [[ "$DOWNLOAD" == "true" ]] && { file_exists "$JAR_DIR/$( get_filename "$( get_url )" )" || { download "$( get_url )" || return 1; }; }
+    [[ "$DOWNLOAD" == "true" ]] && { file_exists "$JAR_DIR/$( get_file_name "$VERSION" )" || { download "$( get_url )" || return 1; }; }
     return 0
 }
 
 function run() {
     local file=""
-    file="$( find "$JAR_DIR" -maxdepth 1 -name "$( get_filename "$(get_url)" )" )"
+    file="$( find "$JAR_DIR" -maxdepth 1 -name "$( get_file_name "$VERSION" )" )"
     cd "$SOURCE_DIR" && java -Dnogui=true -jar "$file" || return 1
     return 0
 }
 
 printf '%s\n' "------------------------- START SCRIPT -------------------------"
 printf '%s\n' "AUTO_DOWNLOAD: $DOWNLOAD"
-printf '%s\n' "VERSION: $VERSION\n"
+printf '%s\n' "VERSION: $VERSION"
+printf '%s\n' ""
 
 if [ ! "${BOT_TOKEN}" == "" ] && [ ! "${BOT_OWNER}" == "" ]; then
     mod_conf || { printf '%s\n' "Error setting conf" && exit 1; }
@@ -174,9 +191,6 @@ else
     printf '%s\n' "See https://jmusicbot.com/getting-a-bot-token/"
     exit 1
 fi
-
-# Set perms
-if [ -d "./supervise" ]; then chmod 0777 supervise; fi
 
 # Get jar
 get_file || { printf '%s\n' "Error downloading ..." && exit 1; }
