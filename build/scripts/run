@@ -24,7 +24,7 @@ NOTIFY="${UPDATE_NOTIFY:-true}"
 RELEASE_API_URL="https://api.github.com/repos/jagrosh/MusicBot/releases"
 RELEASE_API_CONTENT=""
 
-SAMPLE_CONF_URL="https://jmusicbot.com/config/"
+SAMPLE_CONF_URL="https://raw.githubusercontent.com/jagrosh/MusicBot/master/src/main/resources/reference.conf"
 
 PL_DIR="/playlists"
 JAR_DIR="/jars"
@@ -43,10 +43,7 @@ function mod_conf() {
         if [ -w "$SOURCE_DIR/$CONF_FILE" ]; then    # only source conf exists
             mv "$SOURCE_DIR/$CONF_FILE" "$CONF_DIR/$CONF_FILE"
         else
-            echo """$( curl "$SAMPLE_CONF_URL" )""" |\
-                sed 's|&quot;|"|g' | sed 's|&#39;|'\''|g' |\
-                awk '/<code>/,/<\/code>/' |\
-                sed '1d;$d' > "$CONF_DIR/$CONF_FILE"
+            curl "$SAMPLE_CONF_URL" -o "$CONF_DIR/$CONF_FILE"
         fi
         chmod 0666 "$CONF_DIR/$CONF_FILE"
     fi
