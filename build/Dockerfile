@@ -4,9 +4,13 @@
 # a list of version numbers.
 FROM phusion/baseimage:jammy-1.0.2
 
+CMD ["/jmusicbot/run"]
+
 RUN apt-get update &&\
     apt-get install -y openjdk-21-jdk jq &&\
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* &&\
-    mkdir -p /etc/service/jmusicbot
+    mkdir -p /jmusicbot
 
-COPY scripts/run /etc/service/jmusicbot/run
+COPY scripts/run /jmusicbot/run
+
+RUN chmod +x /jmusicbot/run
