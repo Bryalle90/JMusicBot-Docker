@@ -19,7 +19,7 @@ VERSION="${USE_VERSION:-latest}"
 NOTIFY="${UPDATE_NOTIFY:-true}"
 
 RELEASE_API_URL="https://api.github.com/repos/jagrosh/MusicBot/releases"
-RELEASE_API_CONTENT=$( curl -s "$RELEASE_API_URL" )
+RELEASE_API_CONTENT=""
 
 SAMPLE_CONF_URL="https://jmusicbot.com/config/"
 
@@ -73,12 +73,19 @@ function mod_conf() {
 
     # Set update notification
     sed -i "s|\(updatealerts=\).*|\1${NOTIFY}|" "$CONF_DIR/config.txt"
+
+    return 0
+}
+
+function fetch_release_info() {
+    RELEASE_API_CONTENT=$( curl -s "$RELEASE_API_URL" ) || printf '%s\n' "Error fetching release api ..."
 }
 
 function get_releases() {
     local res=""
     local -a releases=()
 
+    if ! [ "$RELEASE_API_CONTENT" ]; then fetch_release_info; fi
     res=$( echo "$RELEASE_API_CONTENT" | jq -c '.[].tag_name' | sed -e 's/^"//' -e 's/"$//' )
     for release in $res; do 
         releases+=("$release")
@@ -100,6 +107,7 @@ function get_latest() {
 function get_download_url() {
     local release="$1"
 
+    if ! [ "$RELEASE_API_CONTENT" ]; then fetch_release_info; fi
     [[ "$release" == "latest" ]] && release=$( get_latest )
     echo "$RELEASE_API_CONTENT" | jq -c ".[] | select(.tag_name == \"$release\") | .assets[].browser_download_url" | sed -e 's/^"//' -e 's/"$//'
 }
@@ -144,22 +152,20 @@ function file_exists() {
 }
 
 function get_file() {
-    local url=""
-
-    url="$( get_url )"
-    [[ "$DOWNLOAD" == "true" ]] && [ "$url" ] && { file_exists "$JAR_DIR/$( get_filename "$url" )" || { download "$url" || return 1; }; }
+    [[ "$DOWNLOAD" == "true" ]] && { file_exists "$JAR_DIR/$( get_filename "$( get_url )" )" || { download "$( get_url )" || return 1; }; }
     return 0
 }
 
 function run() {
     local file=""
     file="$( find "$JAR_DIR" -maxdepth 1 -name "$( get_filename "$(get_url)" )" )"
-    java -Dnogui=true -jar "$file" || return 1
+    cd "$SOURCE_DIR" && java -Dnogui=true -jar "$file" || return 1
     return 0
 }
 
+printf '%s\n' "------------------------- START SCRIPT -------------------------"
 printf '%s\n' "AUTO_DOWNLOAD: $DOWNLOAD"
-printf '%s\n' "VERSION: $VERSION"
+printf '%s\n' "VERSION: $VERSION\n"
 
 if [ ! "${BOT_TOKEN}" == "" ] && [ ! "${BOT_OWNER}" == "" ]; then
     mod_conf || { printf '%s\n' "Error setting conf" && exit 1; }
@@ -177,5 +183,6 @@ get_file || { printf '%s\n' "Error downloading ..." && exit 1; }
 
 # Run bot
 run || { printf '%s\n' "Bot error ..." && exit 1; }
+printf '%s\n' "-------------------------  END SCRIPT  -------------------------"
 
 exit 0
