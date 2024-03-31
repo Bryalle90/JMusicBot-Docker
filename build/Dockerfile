@@ -6,9 +6,13 @@ FROM phusion/baseimage:jammy-1.0.2
 
 CMD ["/jmusicbot/run"]
 
-RUN apt-get update &&\
-    apt-get install -y openjdk-21-jdk jq &&\
-    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* &&\
+RUN apt update &&\
+    apt install -y wget apt-transport-https gpg &&\
+    wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null &&\
+    echo "deb https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | tee /etc/apt/sources.list.d/adoptium.list &&\
+    apt update &&\
+    apt install -y temurin-11-jdk jq &&\
+    apt clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* &&\
     mkdir -p /jmusicbot
 
 COPY scripts/run /jmusicbot/run
