@@ -175,7 +175,12 @@ function get_file() {
 function run() {
     local file=""
     file="$( find "$JAR_DIR" -maxdepth 1 -name "$( get_file_name "$VERSION" )" )"
-    cd "$SOURCE_DIR" && java -Dnogui=true -jar "$file" || return 1
+    cd "$SOURCE_DIR" &&\
+    if [[ "$DEBUG" == "true" ]]; then 
+        java -verbose -Dnogui=true -jar "$file" || return 1
+    else
+        java -Dnogui=true -jar "$file" || return 1
+    fi
     return 0
 }
 
