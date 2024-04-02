@@ -31,7 +31,7 @@ CONF_FILE="config.txt"
 SETTINGS_FILE="serversettings.json"
 JAR_FILE=""
 
-function mod_conf() {
+function verify_conf() {
     printf '%s\n' ""
 
     # Link config.txt
@@ -48,6 +48,10 @@ function mod_conf() {
     printf '%s\n' "Linking: $CONF_DIR/$SETTINGS_FILE -> $SOURCE_DIR/$SETTINGS_FILE" >&2
     ln -s "$CONF_DIR/$SETTINGS_FILE" "$SOURCE_DIR/$SETTINGS_FILE"
 
+    return 0
+}
+
+function mod_conf() {
     # Set token and owner
     printf '%s\n' "" >&2
     printf '%s\n' "Setting: BOT_TOKEN and BOT_OWNER" >&2
@@ -185,9 +189,12 @@ printf '%s\n' ""
 get_file || { printf '%s\n' "Error downloading ..." && exit 1; }
 file_exists "$JAR_FILE" || { printf '%s\n' "Jar file not found ..." && exit 1; }
 
+# Get conf
+verify_conf || { printf '%s\n' "Error verifying conf ..." && exit 1; }
+
 # Modify conf
 if [ ! "${BOT_TOKEN}" == "" ] && [ ! "${BOT_OWNER}" == "" ]; then
-    mod_conf || { printf '%s\n' "Error setting conf" && exit 1; }
+    mod_conf || { printf '%s\n' "Error modifying conf ..." && exit 1; }
 else
     printf '%s\n' "Set the environment variables for BOT_TOKEN and BOT_OWNER"
     printf '%s\n' "See https://jmusicbot.com/getting-a-bot-token/"
