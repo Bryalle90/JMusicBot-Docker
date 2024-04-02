@@ -65,7 +65,7 @@ function mod_conf() {
     printf '%s\n' "Setting: updatealerts to $NOTIFY" >&2
     sed -i "s|\(updatealerts=\).*|\1${NOTIFY}|" "$CONF_DIR/$CONF_FILE"
 
-    printf '%s\n' ""
+    printf '%s\n' "" >&2
     return 0
 }
 
@@ -86,7 +86,7 @@ function generate_serv_settings() {
 }
 
 function fetch_release_info() {
-    RELEASE_API_CONTENT=$( curl -s "$RELEASE_API_URL" ) || printf '%s\n' "Error fetching release api ..."
+    RELEASE_API_CONTENT=$( curl -s "$RELEASE_API_URL" ) || printf '%s\n' "Error fetching release api ..." >&2
 }
 
 function get_releases() {
