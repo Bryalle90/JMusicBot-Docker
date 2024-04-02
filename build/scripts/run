@@ -29,29 +29,22 @@ JAR_DIR="/jars"
 CONF_DIR="/conf"
 CONF_FILE="config.txt"
 SETTINGS_FILE="serversettings.json"
+JAR_FILE=""
 
 function mod_conf() {
+    printf '%s\n' ""
+
     # Link config.txt
-    if [ -w "$SOURCE_DIR/$CONF_FILE" ]; then
-        rm -f "$SOURCE_DIR/$CONF_FILE"
-    fi
+    if [ -w "$SOURCE_DIR/$CONF_FILE" ]; then rm -f "$SOURCE_DIR/$CONF_FILE"; fi
     if [ ! -d "$CONF_DIR" ]; then mkdir -p "$CONF_DIR" && chmod 0666 "$CONF_DIR"; fi
-    if [ ! -w "$CONF_DIR/$CONF_FILE" ]; then
-        generate_conf || return 1
-    fi
+    if [ ! -w "$CONF_DIR/$CONF_FILE" ]; then generate_conf || return 1; fi
     printf '%s\n' "Linking: $CONF_DIR/$CONF_FILE -> $SOURCE_DIR/$CONF_FILE" >&2
     ln -s "$CONF_DIR/$CONF_FILE" "$SOURCE_DIR/$CONF_FILE"
 
     # Link settings json
-    if [ -w "$SOURCE_DIR/$SETTINGS_FILE" ]; then
-        rm -f "$SOURCE_DIR/$SETTINGS_FILE"
-    fi
+    if [ -w "$SOURCE_DIR/$SETTINGS_FILE" ]; then rm -f "$SOURCE_DIR/$SETTINGS_FILE"; fi
     if [ ! -d "$CONF_DIR" ]; then mkdir -p "$CONF_DIR" && chmod 0666 "$CONF_DIR"; fi
-    if [ ! -w "$CONF_DIR/$SETTINGS_FILE" ]; then
-        touch "$CONF_DIR/$SETTINGS_FILE" &&\
-        chmod 0666 "$CONF_DIR/$SETTINGS_FILE" &&\
-        echo "{}" >> "$CONF_DIR/$SETTINGS_FILE"
-    fi
+    if [ ! -w "$CONF_DIR/$SETTINGS_FILE" ]; then generate_serv_settings || return 1; fi
     printf '%s\n' "Linking: $CONF_DIR/$SETTINGS_FILE -> $SOURCE_DIR/$SETTINGS_FILE" >&2
     ln -s "$CONF_DIR/$SETTINGS_FILE" "$SOURCE_DIR/$SETTINGS_FILE"
 
@@ -75,15 +68,19 @@ function mod_conf() {
 }
 
 function generate_conf() {
-    local file=""
-    file="$( find "$JAR_DIR" -maxdepth 1 -name "$( get_file_name "$VERSION" )" )"
     cd "$CONF_DIR" &&\
     if [[ "$DEBUG" == "true" ]]; then 
-        java -verbose -Dnogui=true -jar "$file" "generate-config" || return 1
+        java -verbose -Dnogui=true -jar "$JAR_FILE" "generate-config" || return 1
     else
-        java -Dnogui=true -jar "$file" "generate-config" || return 1
+        java -Dnogui=true -jar "$JAR_FILE" "generate-config" || return 1
     fi && { cd - || return 1; }
     return 0
+}
+
+function generate_serv_settings() {
+    touch "$CONF_DIR/$SETTINGS_FILE" &&\
+    chmod 0666 "$CONF_DIR/$SETTINGS_FILE" &&\
+    echo "{}" >> "$CONF_DIR/$SETTINGS_FILE"
 }
 
 function fetch_release_info() {
@@ -149,12 +146,9 @@ function get_file_name() {
 
 function download() {
     local url="$1"
-    local file=""
-
-    file="$(get_file_name "$VERSION")"
 
     if [ ! -d "$JAR_DIR" ]; then mkdir -p "$JAR_DIR" && chmod 0666 "$JAR_DIR"; fi
-    curl -L "$url" -o "$JAR_DIR/$file" && chmod 0777 "$JAR_DIR/$file" && return 0
+    curl -L "$url" -o "$JAR_FILE" && chmod 0777 "$JAR_FILE" && return 0
     return 1
 }
 
@@ -165,18 +159,19 @@ function file_exists() {
 }
 
 function get_file() {
-    [[ "$DOWNLOAD" == "true" ]] && { file_exists "$JAR_DIR/$( get_file_name "$VERSION" )" || { download "$( get_url )" || return 1; }; }
+    file="$( get_file_name "$VERSION" )"
+    JAR_FILE="$JAR_DIR/$file"
+    
+    [[ "$DOWNLOAD" == "true" ]] && { file_exists "$JAR_FILE" || { download "$( get_url )" || return 1; }; }
     return 0
 }
 
 function run() {
-    local file=""
-    file="$( find "$JAR_DIR" -maxdepth 1 -name "$( get_file_name "$VERSION" )" )"
     cd "$SOURCE_DIR" &&\
     if [[ "$DEBUG" == "true" ]]; then 
-        java -verbose -Dnogui=true -jar "$file" || return 1
+        java -verbose -Dnogui=true -jar "$JAR_FILE" || return 1
     else
-        java -Dnogui=true -jar "$file" || return 1
+        java -Dnogui=true -jar "$JAR_FILE" || return 1
     fi
     return 0
 }
@@ -188,6 +183,7 @@ printf '%s\n' ""
 
 # Get jar
 get_file || { printf '%s\n' "Error downloading ..." && exit 1; }
+file_exists "$JAR_FILE" || { printf '%s\n' "Jar file not found ..." && exit 1; }
 
 # Modify conf
 if [ ! "${BOT_TOKEN}" == "" ] && [ ! "${BOT_OWNER}" == "" ]; then
@@ -199,7 +195,9 @@ else
 fi
 
 # Run bot
-run || { printf '%s\n' "Bot error ..." && exit 1; }
+run
+run_rc=$?
 printf '%s\n' "-------------------------  END SCRIPT  -------------------------"
+[[ $run_rc ]] || { printf '%s\n' "Bot error ..." && exit 1; }
 
 exit 0
