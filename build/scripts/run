@@ -122,7 +122,7 @@ function get_download_url() {
 
 function is_valid_release() {
     local release="$1"
-    [[ "latest" == "$release" ]] && return 0
+    [[ "$release" == "latest" ]] && return 0
     for r in $( get_releases ); do 
         [[ "$r" == "$release" ]] && return 0
     done
@@ -132,9 +132,7 @@ function is_valid_release() {
 function get_url() {
     local url=""
 
-    is_valid_release "$VERSION"
-    if [ $? ]; then url="$( get_download_url "$VERSION" )"; else url=""; fi
-
+    is_valid_release "$VERSION" && url="$( get_download_url "$VERSION" )"
     echo "$url"
 }
 
@@ -161,10 +159,19 @@ function file_exists() {
 }
 
 function get_file() {
+    url=""
     file="$( get_file_name "$VERSION" )"
     JAR_FILE="$JAR_DIR/$file"
     
-    [[ "$DOWNLOAD" == "true" ]] && { file_exists "$JAR_FILE" || { download "$( get_url )" || return 1; }; }
+    if [[ "$DOWNLOAD" == "true" ]] && ! file_exists "$JAR_FILE"; then
+        url="$( get_url )"
+        if [ "$url" != "" ]; then
+            download "$url" || return 1
+        else
+            printf '%s\n' "invalid version specified: $VERSION" >&2
+            return 1
+        fi
+    fi
     return 0
 }
 
