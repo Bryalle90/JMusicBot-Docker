@@ -24,8 +24,6 @@ NOTIFY="${UPDATE_NOTIFY:-true}"
 RELEASE_API_URL="https://api.github.com/repos/jagrosh/MusicBot/releases"
 RELEASE_API_CONTENT=""
 
-SAMPLE_CONF_URL="https://raw.githubusercontent.com/jagrosh/MusicBot/master/src/main/resources/reference.conf"
-
 PL_DIR="/playlists"
 JAR_DIR="/jars"
 CONF_DIR="/conf"
@@ -34,37 +32,27 @@ SETTINGS_FILE="serversettings.json"
 
 function mod_conf() {
     # Link config.txt
-    if [ -w "$CONF_DIR/$CONF_FILE" ]; then
-        if [ -w "$SOURCE_DIR/$CONF_FILE" ]; then    # both confs exist
-            rm -f "$SOURCE_DIR/$CONF_FILE"
-        fi
-    else
-        if [ ! -d "$CONF_DIR" ]; then mkdir -p "$CONF_DIR" && chmod 0666 "$CONF_DIR"; fi
-        if [ -w "$SOURCE_DIR/$CONF_FILE" ]; then    # only source conf exists
-            mv "$SOURCE_DIR/$CONF_FILE" "$CONF_DIR/$CONF_FILE"
-        else
-            curl "$SAMPLE_CONF_URL" -o "$CONF_DIR/$CONF_FILE"
-        fi
-        chmod 0666 "$CONF_DIR/$CONF_FILE"
+    if [ -w "$SOURCE_DIR/$CONF_FILE" ]; then
+        rm -f "$SOURCE_DIR/$CONF_FILE"
     fi
-    printf '%s\n' "Linking: $CONF_FILE" >&2
+    if [ ! -d "$CONF_DIR" ]; then mkdir -p "$CONF_DIR" && chmod 0666 "$CONF_DIR"; fi
+    if [ ! -w "$CONF_DIR/$CONF_FILE" ]; then
+        generate_conf || return 1
+    fi
+    printf '%s\n' "Linking: $CONF_DIR/$CONF_FILE -> $SOURCE_DIR/$CONF_FILE" >&2
     ln -s "$CONF_DIR/$CONF_FILE" "$SOURCE_DIR/$CONF_FILE"
 
-    # Link settings .json
-    if [ -w "$CONF_DIR/$SETTINGS_FILE" ]; then
-        if [ -w "$SOURCE_DIR/$SETTINGS_FILE" ]; then    # both confs exist
-            rm -f "$SOURCE_DIR/$SETTINGS_FILE"
-        fi
-    else
-        if [ ! -d "$CONF_DIR" ]; then mkdir -p "$CONF_DIR" && chmod 0666 "$CONF_DIR"; fi
-        if [ -w "$SOURCE_DIR/$SETTINGS_FILE" ]; then    # only source conf exists
-            mv "$SOURCE_DIR/$SETTINGS_FILE" "$CONF_DIR/$SETTINGS_FILE"
-        else                                                 # no confs exist
-            touch "$CONF_DIR/$SETTINGS_FILE" && echo "{}" >> "$CONF_DIR/$SETTINGS_FILE"
-        fi
-        chmod 0666 "$CONF_DIR/$SETTINGS_FILE"
+    # Link settings json
+    if [ -w "$SOURCE_DIR/$SETTINGS_FILE" ]; then
+        rm -f "$SOURCE_DIR/$SETTINGS_FILE"
     fi
-    printf '%s\n' "Linking: $SETTINGS_FILE" >&2
+    if [ ! -d "$CONF_DIR" ]; then mkdir -p "$CONF_DIR" && chmod 0666 "$CONF_DIR"; fi
+    if [ ! -w "$CONF_DIR/$SETTINGS_FILE" ]; then
+        touch "$CONF_DIR/$SETTINGS_FILE" &&\
+        chmod 0666 "$CONF_DIR/$SETTINGS_FILE" &&\
+        echo "{}" >> "$CONF_DIR/$SETTINGS_FILE"
+    fi
+    printf '%s\n' "Linking: $CONF_DIR/$SETTINGS_FILE -> $SOURCE_DIR/$SETTINGS_FILE" >&2
     ln -s "$CONF_DIR/$SETTINGS_FILE" "$SOURCE_DIR/$SETTINGS_FILE"
 
     # Set token and owner
@@ -83,6 +71,18 @@ function mod_conf() {
     sed -i "s|\(updatealerts=\).*|\1${NOTIFY}|" "$CONF_DIR/$CONF_FILE"
 
     printf '%s\n' ""
+    return 0
+}
+
+function generate_conf() {
+    local file=""
+    file="$( find "$JAR_DIR" -maxdepth 1 -name "$( get_file_name "$VERSION" )" )"
+    cd "$CONF_DIR" &&\
+    if [[ "$DEBUG" == "true" ]]; then 
+        java -verbose -Dnogui=true -jar "$file" "generate-config" || return 1
+    else
+        java -Dnogui=true -jar "$file" "generate-config" || return 1
+    fi && { cd - || return 1; }
     return 0
 }
 
@@ -186,6 +186,10 @@ printf '%s\n' "AUTO_DOWNLOAD: $DOWNLOAD"
 printf '%s\n' "VERSION: $VERSION"
 printf '%s\n' ""
 
+# Get jar
+get_file || { printf '%s\n' "Error downloading ..." && exit 1; }
+
+# Modify conf
 if [ ! "${BOT_TOKEN}" == "" ] && [ ! "${BOT_OWNER}" == "" ]; then
     mod_conf || { printf '%s\n' "Error setting conf" && exit 1; }
 else
@@ -193,9 +197,6 @@ else
     printf '%s\n' "See https://jmusicbot.com/getting-a-bot-token/"
     exit 1
 fi
-
-# Get jar
-get_file || { printf '%s\n' "Error downloading ..." && exit 1; }
 
 # Run bot
 run || { printf '%s\n' "Bot error ..." && exit 1; }
