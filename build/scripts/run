@@ -32,8 +32,6 @@ SETTINGS_FILE="serversettings.json"
 JAR_FILE=""
 
 function verify_conf() {
-    printf '%s\n' ""
-
     # Link config.txt
     if [ -w "$SOURCE_DIR/$CONF_FILE" ]; then rm -f "$SOURCE_DIR/$CONF_FILE"; fi
     if [ ! -d "$CONF_DIR" ]; then mkdir -p "$CONF_DIR" && chmod 0666 "$CONF_DIR"; fi
