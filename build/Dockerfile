@@ -4,7 +4,10 @@
 # a list of version numbers.
 FROM phusion/baseimage:jammy-1.0.2
 
-CMD ["/jmusicbot/run"]
+CMD ["./run"]
+
+RUN groupadd -r musicbot && \
+    useradd -g musicbot musicbot
 
 RUN apt update &&\
     apt install -y wget apt-transport-https gpg &&\
@@ -15,6 +18,11 @@ RUN apt update &&\
     apt clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* &&\
     mkdir -p /jmusicbot
 
+WORKDIR /jmusicbot
+
 COPY scripts/run /jmusicbot/run
 
-RUN chmod +x /jmusicbot/run
+RUN chown -R musicbot:musicbot /jmusicbot && \
+    chmod +x /jmusicbot/run
+
+USER musicbot
